@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: marketpulse_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: marketpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: MarketPulse/docker/backend.Dockerfile
+    container_name: marketpulse_backend
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/marketpulse
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: MarketPulse/docker/dashboard.Dockerfile
+    container_name: marketpulse_dashboard
+    restart: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/marketpulse
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
