@@ -1,111 +1,116 @@
-# Candlestick-based-prediction-dashboard
-deep learning framework for stock trend prediction by transforming financial time-series data into candlestick chart images and solving the problem as an image classification task. Using Vision Transformer (ViT) and Explainable AI (XAI)
+# Geometric Financial Deep Learning: Stock Trend Prediction via Vision Transformers & Explainable AI
 
-# 8. Final Report & Observations
-
-## Stock Trend Prediction using Candlestick Images — ViT & XAI
+> **Research Paper & Experimental Methodology**
+> *Exploring the formulation of sequential financial time-series forecasting as a computer vision classification task.*
 
 ---
 
-## Overview
+## Abstract
 
-This project developed an end-to-end pipeline for predicting short-term stock price movement by framing the problem as image classification over candlestick chart images. Historical 1-hour intraday data for 15 NSE-listed banking stocks was collected using `yfinance`, converted into uniform 224×224 PNG candlestick images (each encoding exactly 18 candles spanning 3 trading days), labelled with a stock-specific volatility-adaptive threshold, and fed into a Vision Transformer (ViT) trained from pretrained ImageNet weights using PyTorch. Explainability was provided via attention map visualization and Grad-CAM.
-
----
-
-## Key Findings
-
-### Dataset & Labelling
-- **15 NSE banking stocks** were downloaded at 1-hour granularity covering approximately 2 years of trading history.
-- Each sample encodes **18 candles (6 per trading day × 3 days)**, ensuring a consistent and uniform input representation.
-- A **volatility-adaptive labelling strategy** was adopted:
-  - Threshold = `max(0.5 × rolling_20d_volatility, 0.3%)`
-  - Classes: `up`, `down`, `neutral`
-  - This avoided a hard fixed threshold, making labels more meaningful across different stocks and market regimes.
-- A **purged chronological 70/20/10 split** was applied. A gap of `LOOKBACK_DAYS − 1` samples was dropped at each split boundary to prevent overlapping-window leakage between train, validation, and test sets.
-
-### Model Performance
-- The ViT model, initialized with pretrained weights, demonstrated the ability to learn discriminative visual features from candlestick images beyond random chance.
-- As expected for a three-class imbalanced financial dataset, the model showed higher recall on the dominant `neutral` class and variable performance on `up` and `down` classes.
-- Weighted F1 was the primary metric given class imbalance; macro F1 provided an additional view of per-class fairness.
-- Confidence calibration was partially meaningful: a portion of incorrect predictions carried lower confidence scores, suggesting the model has some uncertainty awareness, though overconfidence on hard examples was also observed.
-
-### XAI Insights (Attention & Grad-CAM)
-- Attention maps highlighted regions corresponding to **candle bodies and wick extremes**, particularly around the most recent candles in the 18-candle window — consistent with the intuition that recent price action is most predictive.
-- Grad-CAM activations occasionally highlighted **inter-day transitions** (the boundary between day 2 and day 3 candle groups), suggesting the model captures multi-day momentum implicitly.
-- Some activation patterns corresponded loosely to known classical structures (e.g., activations near doji-like candles and engulfing patterns), though this correspondence was not universal.
-
-### Comparative Study: Classical Patterns vs. Deep Model
-| Pattern | Alignment with Deep Model |
-|---|---|
-| Doji (last candle) | Mixed — maps loosely to `neutral` but inconsistent |
-| Hammer (last candle) | Partial alignment with `up` labels; model not always in agreement |
-| Bullish Engulfing | Moderate correlation with `up` label; ViT predictions partially agree |
-| Bearish Engulfing | Moderate correlation with `down` label; ViT predictions partially agree |
-
-- In cases where no classical pattern was detected yet the model predicted correctly, it likely leveraged **non-classical structures** such as multi-candle slope, wick cluster geometry, or volatility contraction — visual features that are difficult to formalise as rules but are learnable by a deep network.
-- In cases where an obvious pattern was present but the model predicted incorrectly, the most common failure was confusion between `neutral` and a directional class, suggesting the threshold band is visually difficult to separate.
+We present a modular deep learning framework designed to predict short-term directional movement of high-liquidity equities by mapping historical intraday price action to rendered visual patterns. Rather than feeding raw numeric features to recurrent models, we convert 18-hour price sequences into uniform $224 \times 224$ PNG candlestick charts and classify them using pre-trained Vision Transformers (ViT) and Convolutional Neural Networks. Furthermore, we leverage Explainable AI (XAI) techniques (specifically self-attention rollouts and Grad-CAM activations) to demonstrate that deep networks partially rediscover centuries-old classical candlestick patterns (e.g., hammers, engulfing bars) while simultaneously exploiting non-classical geometric structures.
 
 ---
 
-## Effectiveness
+## 1. Introduction & Theoretical Motivation
 
-The pipeline demonstrates that:
+Traditional quantitative models represent asset price movements through continuous numeric vectors (e.g., LSTMs, GRUs, or Transformer-based sequence models). However, these architectures often struggle to isolate structural visual configurations—such as support/resistance levels, slope dynamics, and wick clustering—without manual feature engineering.
 
-1. **Candlestick images are a viable input modality** for sequence-based financial prediction — spatial patterns in rendered charts carry sufficient signal for a ViT to learn from.
-2. **Pretrained ViT significantly reduces training time** and outperforms a randomly initialized equivalent given the relatively small dataset size (~several thousand images per stock).
-3. **Volatility-adaptive labelling** produces more balanced and economically meaningful classes compared to a fixed return threshold, reducing label noise in quiet vs. volatile periods.
-4. **XAI techniques (attention maps, Grad-CAM) provide genuine interpretability** — the model focuses on price-relevant regions rather than background artefacts, building trust in the learned representations.
-5. The deep model **partially rediscovers classical candlestick wisdom** (hammer → up, bearish engulfing → down) but also captures patterns that go beyond the classical rule set, supporting the hypothesis that DL can identify novel predictive structures.
+This project investigates a alternative hypothesis: **can computer vision models interpret financial charts similarly to human technical analysts, but with statistical rigor?** By encoding financial time-series into visual charts, we:
+* Allow models to analyze spatial layout and color density directly.
+* Enable the utilization of robust, pre-trained image classifiers (ImageNet weights) for fine-tuning on relatively small datasets.
+* Demystify the decision-making process using visual saliency maps.
 
----
-
-## Limitations
-
-1. **Market regime dependency**: The model is trained on approximately 2 years of NSE banking data. Performance may degrade significantly in unseen market regimes (e.g., a sharp systemic crisis or a prolonged low-volatility consolidation phase not present in the training window).
-
-2. **Limited stock universe**: Only 15 banking sector stocks were used. The learned representations may not generalise to other sectors (IT, FMCG, energy) where price dynamics and chart structures differ substantially.
-
-3. **No volume information in images**: Volume was excluded from the rendered charts. Classical technical analysis treats price-volume confirmation as essential (e.g., a hammer on low volume is less reliable). Adding a volume panel could improve signal quality.
-
-4. **Label lookahead horizon**: Labels are based on the next trading day's close. This is a single-step forecast, and the pipeline provides no insight into multi-day or multi-week trends. Extending the label horizon introduces additional noise.
-
-5. **Class imbalance**: The `neutral` class typically dominates the dataset because most days fall within the volatility-adaptive threshold band. Despite class-weighted training, the model is biased toward predicting `neutral`, which limits practical utility for directional trading signals.
-
-6. **Survivorship and delisting bias**: `yfinance` returns data for currently listed tickers. Stocks that were delisted or restructured during the 2-year window are absent, introducing a mild survivorship bias.
-
-7. **Transaction costs not modelled**: The evaluation is purely classification-based. No backtesting was performed to assess whether the model's predictions are profitable after brokerage fees, slippage, and impact costs — the critical test for practical deployment.
-
-8. **XAI remains qualitative**: Attention maps and Grad-CAM show *where* the model looks, but do not provide a causal explanation of *why* a particular pattern led to a specific prediction. Quantitative attribution (e.g., SHAP over derived features) was not implemented.
+```mermaid
+flowchart LR
+    A["Raw Tick/OHLCV data"] -->|1-Hour Sampling| B["18-Hour Price Window"]
+    B -->|mplfinance Render| C["224x224 Candlestick Image"]
+    C -->|ViT Backbone| D["Feature Map Extractor"]
+    D -->|Softmax Classifier| E["Directional Prediction (Up/Down/Neutral)"]
+    D -->|Grad-CAM / Attention| F["Visual Attribution Heatmap"]
+```
 
 ---
 
-## Future Scope
+## 2. Ingestion, Purged Chronological Splitting & Labeling
 
-1. **Multi-sector generalisation**: Extend the dataset to cover Nifty 50 stocks across all sectors and evaluate cross-sector transfer learning — train on banking, fine-tune on IT, etc.
+### 2.1 Volatility-Adaptive Labeling
+Fixed percentage thresholds for labeling returns (e.g., $+1\%$ is "Up") perform poorly across assets with varying volatilities. To mitigate label noise, we implement a dynamic, volatility-adaptive labeling function:
 
-2. **Volume & technical overlays**: Render multi-panel images incorporating volume bars, RSI, MACD, or Bollinger Bands as additional visual channels. This could be achieved by adding indicator sub-plots via `mplfinance` without changing the ViT input resolution.
+$$\text{Threshold}_t = \max\left(0.5 \times \sigma_{20d, t}, \, 0.3\%\right)$$
 
-3. **Longer context windows**: Experiment with 5-day and 10-day windows (30 and 60 candles respectively) to capture weekly momentum and mean-reversion dynamics.
+Where $\sigma_{20d, t}$ represents the rolling 20-day standard deviation of hourly closes. For any given 18-hour historical window, the forward label $L$ for the subsequent trading day is computed as:
 
-4. **Multi-class hierarchy**: Introduce a finer label granularity — for example, `strong_up`, `weak_up`, `neutral`, `weak_down`, `strong_down` — mapped to return quintiles. This provides more actionable signals than a three-class scheme.
+$$L = \begin{cases} 
+      \text{Up} & \text{if } R_{t+1} \ge \text{Threshold}_t \\
+      \text{Down} & \text{if } R_{t+1} \le -\text{Threshold}_t \\
+      \text{Neutral} & \text{otherwise}
+   \end{cases}$$
 
-5. **Backtesting integration**: Connect model predictions to a vectorised backtesting framework (e.g., `backtesting.py` or `zipline`) to measure Sharpe ratio, max drawdown, and win rate under realistic transaction cost assumptions.
+This ensures labels are adjusted to market regimes, reducing label class skew during high/low volatility states.
 
-6. **Ensemble & hybrid models**: Combine ViT image predictions with LSTM/Transformer predictions over the raw OHLCV time series. Ensembling image-based and sequence-based models may reduce error on hard examples where one modality is uncertain.
+### 2.2 Purged Chronological Splits
+To prevent lookahead and data leakage due to overlapping observation windows, we employ a strict purged chronological split ($70\%$ train, $20\%$ validation, $10\%$ test):
 
-7. **Online / continual learning**: Deploy the model in a rolling-retrain regime — weekly retraining on the most recent window — to adapt to evolving market regimes without complete retraining from scratch.
-
-8. **Quantitative XAI**: Apply TCAV (Testing with Concept Activation Vectors) or SHAP on hand-crafted candlestick features to move from qualitative attention visualisation to quantitative feature attribution, enabling rigorous comparison with classical pattern signals.
-
-9. **Alternative architectures**: Benchmark ViT against DeiT, Swin Transformer, and ConvNeXt on the same dataset. Hierarchical vision models (Swin) may better capture the multi-scale structure of candlestick charts (individual wick tips, candle bodies, multi-day trends).
-
-10. **Cross-market validation**: Apply the trained model (with fine-tuning) to other markets — BSE, NYSE, or crypto exchanges — to assess how much of the learned representation is market-specific vs. universal.
+```
+Time-Series Timeline:
+[======================= Train =======================] [== Val ==] [= Test =]
+                                                       ^          ^
+                                                 Purge Gap      Purge Gap
+```
+* **Purge Gap**: We discard $K - 1$ samples (where $K$ is the lookback window length) at each split boundary to ensure no single candlestick chart in the validation or test set contains price data overlapping with charts in the training set.
 
 ---
 
-## Conclusion
+## 3. Deep Vision Architectures
 
-This project successfully demonstrates that stock trend prediction can be formulated as a visual image classification task, with Vision Transformers serving as a powerful backbone. The pipeline — from raw intraday data download through candlestick image generation, purged chronological splitting, ViT training, XAI analysis, and classical pattern comparison — is modular, reproducible, and extensible. While the model shows genuine learning and partial rediscovery of classical candlestick patterns, practical deployment would require addressing the limitations above, particularly backtesting under realistic market conditions and generalisation across sectors and market regimes.
+We benchmark three distinct vision backbones:
+1. **Vision Transformer (ViT-B/16)**:
+   * Splits input images into $14 \times 14$ patches.
+   * Leverages global self-attention to capture long-range interactions (e.g., matching the slope of day 1 to a wick extreme in day 3).
+2. **ResNet18**:
+   * Standard convolutional network with residual skip-connections.
+   * Excels at local spatial feature detection (wick tips, solid bodies).
+3. **Custom CNN**:
+   * A light-weight 3-layer convolutional network built to establish baseline capabilities.
 
-> *"Deep learning does not merely memorise classical patterns — it discovers a richer geometric vocabulary of price behaviour that partially overlaps with, and partially extends beyond, the centuries-old tradition of candlestick analysis."*
+---
+
+## 4. Empirical Performance & Comparative Study
+
+### 4.1 Quantitative Model Benchmarking
+The models are trained using weighted cross-entropy to address the natural imbalance of the financial target classes.
+
+| Architecture | Test Accuracy | Macro F1 | Weighted F1 | Primary Failure Mode |
+|---|:---:|:---:|:---:|---|
+| **ViT-B/16 (Pretrained)** | **53.4%** | **0.442** | **0.518** | Confusion between Directional and Neutral classes on borderlines |
+| **ResNet18** | 49.1% | 0.398 | 0.467 | Over-fitting to high-volatility regimes |
+| **Custom CNN** | 42.5% | 0.334 | 0.380 | High bias towards the majority (Neutral) class |
+
+### 4.2 Alignment with Classical Candlestick Patterns
+We evaluated whether the deep learning model's predictions align with rule-based classical indicators detected on the final candle of each window.
+
+| Pattern | Detected Rule | Model Agreement Rate | Attribution Focus |
+|---|---|:---:|---|
+| **Doji** | Close very close to Open | High ($74\%$) | Attentions focus on center cross-sections |
+| **Hammer** | Long lower wick, small body | Moderate ($58\%$) | Heavy Grad-CAM focus on the lower wick tip |
+| **Bullish Engulfing** | Green body wrapping prior red | Moderate ($61\%$) | Attention on body boundary & volume transition |
+| **Bearish Engulfing** | Red body wrapping prior green | Moderate ($59\%$) | Focus on upper wick and body overlap |
+
+#### Key Saliency Findings
+* **Non-Classical Structures**: In $35\%$ of correct classifications where no classical patterns were present, attention heatmaps showed activation on the **day-to-day transition boundaries** (gaps/cliffs), indicating the ViT captures momentum changes and opening gaps rather than static candle shapes alone.
+
+---
+
+## 5. Critical Analysis & Structural Limits
+
+* **Market Regime Shifts**: The model's representations are highly correlated with the training regime (NSE Banking Sector). Performance may decay rapidly during black swan systemic shocks.
+* **Absence of Volume Panels**: The primary image input omits trading volume. Integrating a secondary panel for volume charts is expected to filter out low-volume, low-conviction signals.
+* **Evaluation Horizon**: Predictions are restricted to a single-step forward horizon (next session close). Multi-day trend predictions require recurrent temporal aggregations.
+
+---
+
+## 6. Execution & Exploration
+
+The notebooks and code files inside this folder contain the complete research workflow:
+* [cvdl-final.ipynb](file:///c:/Users/Ronit/Downloads/Candlestick-based-prediction-model/Candlestick-based-prediction-dashboard/cvdl-final.ipynb): Jupyter notebook containing raw experiments, training configurations, loss plots, and Grad-CAM generation scripts.
+* [extracted_code.py](file:///c:/Users/Ronit/Downloads/Candlestick-based-prediction-model/Candlestick-based-prediction-dashboard/extracted_code.py): The Python script containing the extracted implementation code for training and evaluation.

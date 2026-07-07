@@ -12,27 +12,27 @@ The following block diagram represents the modular components of MarketPulse, sh
 
 ```mermaid
 graph TD
-    subgraph Data Extraction & Validation (ETL)
-        YF[Yahoo Finance API] -->|Raw Prices| ETL[Ingestion Pipeline]
-        ETL -->|Validation Rules| DQ[Data Quality Validator]
+    subgraph ETL ["Data Extraction & Validation (ETL)"]
+        YF[Yahoo Finance API] -->|Raw Prices| ETL_PIPE[Ingestion Pipeline]
+        ETL_PIPE -->|Validation Rules| DQ[Data Quality Validator]
     end
 
-    subgraph Relational Persistence (DB)
-        DQ -->|Clean Bulk Inserts| DB[(PostgreSQL / SQLite)]
+    subgraph DB ["Relational Persistence (DB)"]
+        DQ -->|Clean Bulk Inserts| PERSIST_DB[(PostgreSQL / SQLite)]
     end
 
-    subgraph Machine Learning Service (ML)
-        DB -->|Hourly Price Series| IMG[Candlestick Renderer]
+    subgraph ML ["Machine Learning Service (ML)"]
+        PERSIST_DB -->|Hourly Price Series| IMG[Candlestick Renderer]
         IMG -->|18-Candle Images| ViT[Vision Transformer Model]
         ViT -->|Inference Scores| XAI[Grad-CAM Attention Maps]
     end
 
-    subgraph Backend Gateways (REST)
-        DB -->|ORM / SQL Queries| API[FastAPI Server]
+    subgraph REST ["Backend Gateways (REST)"]
+        PERSIST_DB -->|ORM / SQL Queries| API[FastAPI Server]
         XAI -->|Visual Overlays| API
     end
 
-    subgraph Presentation & UI (Dashboard)
+    subgraph UI ["Presentation & UI (Dashboard)"]
         API -->|JSON Endpoints| SL[Streamlit Web Dashboard]
         SL -->|PDF / Excel Downloads| User[Financial Analysts]
     end
