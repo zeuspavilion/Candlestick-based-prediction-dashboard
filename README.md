@@ -13,16 +13,16 @@ The platform consists of two main pillars:
 ### Workflow & Ingestion Pipeline
 ```mermaid
 flowchart TD
-    subgraph Data Extraction & ETL
+    subgraph ETL ["Data Extraction & ETL"]
         YF[yfinance API] -->|Raw 1-Hour Bar Data| Ingest[Ingestion Pipeline]
         Ingest -->|Schema & Missing Data Check| DQ[Data Quality Validator]
     end
 
-    subgraph Relational Database (Persistence)
+    subgraph DB_PERSIST ["Relational Database (Persistence)"]
         DQ -->|Clean Bulk Inserts| DB[(PostgreSQL / SQLite)]
     end
 
-    subgraph Machine Learning Service (ML)
+    subgraph ML ["Machine Learning Service (ML)"]
         DB -->|Hourly Price Windows| Render[Candlestick Chart Renderer]
         Render -->|224x224 PNG Images| Splits[Purged Chronological Splitting]
         Splits -->|Training / Validation / Test Sets| Models[Model Architecture: ViT / ResNet / CNN]
@@ -30,13 +30,13 @@ flowchart TD
         Models -->|Explainability| XAI[XAI: Grad-CAM & Attention Maps]
     end
 
-    subgraph Backend Gateways (REST API)
+    subgraph API_GATE ["Backend Gateways (REST API)"]
         DB -->|ORM & Raw SQL Queries| API[FastAPI Server]
         Predictions -->|Model Evaluation Metrics| API
         XAI -->|Visual Overlays & Attributions| API
     end
 
-    subgraph Presentation & UI (Dashboard Client)
+    subgraph CLIENT ["Presentation & UI (Dashboard Client)"]
         API -->|JSON Endpoints| SL[Streamlit Web Dashboard]
         SL -->|Financial Reports| User[Analysts & Traders]
     end
